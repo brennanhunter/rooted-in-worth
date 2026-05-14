@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IM_Fell_English, Raleway } from "next/font/google";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import NewsletterSignup from "./components/NewsletterSignup";
 import "./globals.css";
 
 const imFellEnglish = IM_Fell_English({
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-cream text-bark">
         <Header />
         <main className="flex-1">{children}</main>
+        <NewsletterSignup />
         <Footer />
       </body>
     </html>
