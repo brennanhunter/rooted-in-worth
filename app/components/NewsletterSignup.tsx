@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { usePathname } from "next/navigation";
 import { Mail, Send, Sprout, AlertCircle, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { subscribe } from "@/app/actions/subscribe";
@@ -12,9 +13,12 @@ export default function NewsletterSignup({
 }: {
   source?: string;
 }) {
+  const pathname = usePathname();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  if (pathname?.startsWith("/unsubscribe")) return null;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
