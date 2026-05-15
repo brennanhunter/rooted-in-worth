@@ -24,7 +24,9 @@ export default function NewsletterSignup({
     pathname?.startsWith("/signin") ||
     pathname?.startsWith("/signup") ||
     pathname?.startsWith("/reset") ||
-    pathname?.startsWith("/account")
+    pathname?.startsWith("/account") ||
+    pathname?.startsWith("/profile") ||
+    pathname?.startsWith("/u/")
   )
     return null;
 

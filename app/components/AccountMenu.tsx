@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronDown, LogOut, User } from "lucide-react";
+import { ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { signOut } from "@/app/actions/auth";
 
@@ -74,12 +74,21 @@ export default function AccountMenu({
             className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-bark/15 bg-cream shadow-lg"
           >
             <Link
-              href="/account"
+              href="/profile"
               role="menuitem"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2 px-4 py-2.5 text-sm text-bark transition-colors hover:bg-bark/5"
             >
               <User className="h-4 w-4 text-bark/60" aria-hidden="true" />
+              Profile
+            </Link>
+            <Link
+              href="/account"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 border-t border-bark/10 px-4 py-2.5 text-sm text-bark transition-colors hover:bg-bark/5"
+            >
+              <Settings className="h-4 w-4 text-bark/60" aria-hidden="true" />
               Account
             </Link>
             <form action={signOut}>

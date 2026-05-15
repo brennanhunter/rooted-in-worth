@@ -46,7 +46,9 @@ alter table public.profiles
   add column if not exists skills text[] not null default '{}',
   add column if not exists family_size smallint,
   add column if not exists location_preference text,
-  add column if not exists updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default now(),
+  -- null = hasn't been through profile setup; stamped on finish/skip
+  add column if not exists onboarded_at timestamptz;
 
 drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at
@@ -65,7 +67,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, email, display_name)
+  insert into public.profiles (id, email, display_name, avatar_url)
   values (
     new.id,
     new.email,
@@ -74,6 +76,13 @@ begin
         new.raw_user_meta_data->>'display_name',
         new.raw_user_meta_data->>'full_name',
         new.raw_user_meta_data->>'name'
+      ),
+      ''
+    ),
+    nullif(
+      coalesce(
+        new.raw_user_meta_data->>'avatar_url',
+        new.raw_user_meta_data->>'picture'
       ),
       ''
     )
@@ -145,12 +154,35 @@ create policy "profiles: self can read"
 drop policy if exists "profiles: self can update" on public.profiles;
 create policy "profiles: self can update"
   on public.profiles for update
-  using (auth.uid() = id);
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
 
 drop policy if exists "profiles: admins can read all" on public.profiles;
 create policy "profiles: admins can read all"
   on public.profiles for select
   using (public.is_admin());
+
+-- Public profile surface. The base `profiles` table has NO public
+-- select policy, so `email` (and any future sensitive column) is never
+-- readable by anon. This view is the ONLY public read path and
+-- deliberately selects a safe column subset. It is intentionally NOT
+-- security_invoker: it runs with the view owner's rights so logged-out
+-- visitors can read the safe columns of all profiles, while RLS still
+-- blocks direct table access. Add new profile columns here only if
+-- they're meant to be public.
+create or replace view public.public_profiles as
+select
+  id,
+  display_name,
+  avatar_url,
+  bio,
+  skills,
+  family_size,
+  location_preference,
+  created_at
+from public.profiles;
+
+grant select on public.public_profiles to anon, authenticated;
 
 -- =====================================================
 -- 2. subscribers
@@ -269,6 +301,59 @@ create policy "campaign_sends: admins full access"
   on public.campaign_sends for all
   using (public.is_admin())
   with check (public.is_admin());
+
+-- =====================================================
+-- Storage: avatars bucket
+-- Public-read so <Image> can render avatars without auth. Writes are
+-- restricted by RLS to a folder named after the user's own uid, and
+-- the bucket itself enforces size + mime limits server-side (defense
+-- in depth — not just client validation).
+-- =====================================================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars', 'avatars', true, 2097152,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "avatars: public read" on storage.objects;
+create policy "avatars: public read"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+-- A user may only write within a top-level folder equal to their uid,
+-- e.g. avatars/<uid>/avatar.jpg. They cannot touch anyone else's.
+drop policy if exists "avatars: owner insert" on storage.objects;
+create policy "avatars: owner insert"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  );
+
+drop policy if exists "avatars: owner update" on storage.objects;
+create policy "avatars: owner update"
+  on storage.objects for update
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  )
+  with check (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  );
+
+drop policy if exists "avatars: owner delete" on storage.objects;
+create policy "avatars: owner delete"
+  on storage.objects for delete
+  using (
+    bucket_id = 'avatars'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  );
 
 -- =====================================================
 -- One-time bootstrap

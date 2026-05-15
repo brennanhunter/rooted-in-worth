@@ -247,12 +247,28 @@ accounts+feed work, not "nice to have."
   `profiles`; widen the lens — be deliberate about every field a logged-out
   visitor (or scraper) can read. Default new profile fields to *not*
   publicly exposed unless intended.
-- **Image-upload safety.** Public avatars (and later post images) can be
-  abused. At minimum: type/size limits, a report path, fast admin removal.
-  Automated scanning is a later upgrade; the *manual removal path* is not.
+- **Image-upload safety.**
+  - [x] Type/size limits (client + bucket-enforced).
+  - [x] **Automated pre-publish moderation** — avatar uploads route
+        through `/api/avatar`, screened by OpenAI omni-moderation
+        *before* anything is written to public storage. Fails **closed**
+        (a moderation outage rejects the upload rather than letting it
+        through). Stricter-than-default category blocking given the
+        audience.
+  - [ ] **Report path + admin removal queue** — still open. Best built
+        alongside the Phase 3 feed (same moderation surface; avatars are
+        the only public images today). Tracked with the feed's
+        reporting/moderation item.
+  - [ ] **CSAM is a SEPARATE track — not covered by the above.** The
+        omni-moderation classifier is not CSAM hash-matching. A platform
+        serving foster youth/minors that hosts user images has potential
+        legal obligations (US: NCMEC reporting). Needs a vetted provider
+        (e.g. PhotoDNA), a reporting workflow, and legal counsel. Do not
+        treat the classifier as sufficient for this.
 - **Content moderation posture.** Decide the stance (pre-moderate vs
   reactive-removal) and who holds the admin role. The `is_admin()` helper
-  exists; the *people and process* don't yet.
+  exists; the *people and process* don't yet. (Images are now
+  pre-moderated; text/posts posture is still undecided.)
 
 ---
 

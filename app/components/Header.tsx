@@ -39,12 +39,20 @@ export default async function Header() {
         {user ? (
           <AccountMenu displayName={displayName} avatarUrl={avatarUrl} />
         ) : (
-          <Link
-            href="/signin"
-            className="inline-flex items-center gap-2 rounded-full border border-bark/20 bg-cream px-4 py-2 text-sm text-bark transition-colors hover:border-bark/40 hover:bg-bark/5"
-          >
-            Sign in
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/signin"
+              className="inline-flex items-center rounded-full border border-bark/20 bg-cream px-4 py-2 text-sm text-bark transition-colors hover:border-bark/40 hover:bg-bark/5"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/signup"
+              className="inline-flex items-center rounded-full bg-bark px-4 py-2 text-sm text-cream transition-colors hover:bg-bark/90"
+            >
+              Sign up
+            </Link>
+          </div>
         )}
       </div>
     </header>

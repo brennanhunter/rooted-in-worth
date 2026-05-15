@@ -16,6 +16,25 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // First arrival with a session (email confirmed, or Google):
+      // nudge not-yet-onboarded users into profile setup. Only when
+      // landing on the default route — an explicit `next` (e.g. the
+      // password-reset flow) is always honored.
+      if (safeNext === "/") {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("onboarded_at")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (!profile?.onboarded_at) {
+            return NextResponse.redirect(`${origin}/profile/setup`);
+          }
+        }
+      }
       return NextResponse.redirect(`${origin}${safeNext}`);
     }
     console.error("auth/callback: exchange failed", error.message);
