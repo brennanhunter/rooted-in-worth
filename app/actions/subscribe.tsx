@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resend } from "@/lib/resend";
+import { subscribeRatelimit, clientIp } from "@/lib/ratelimit";
 import WelcomeEmail from "@/emails/WelcomeEmail";
 
 export type SubscribeResult =
@@ -11,6 +13,22 @@ export type SubscribeResult =
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export async function subscribe(formData: FormData): Promise<SubscribeResult> {
+  if (subscribeRatelimit) {
+    const ip = clientIp(await headers());
+    const { success } = await subscribeRatelimit.limit(ip);
+    if (!success) {
+      return {
+        ok: false,
+        error: "Too many attempts. Please try again in a little while.",
+      };
+    }
+  } else {
+    console.warn(
+      "subscribe(): rate limiting INACTIVE — UPSTASH_REDIS_REST_URL/TOKEN not set. " +
+        "Provision Upstash Redis to enforce this.",
+    );
+  }
+
   const rawEmail = formData.get("email");
   const rawSource = formData.get("source");
 

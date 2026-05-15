@@ -18,7 +18,15 @@ export default function NewsletterSignup({
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  if (pathname?.startsWith("/unsubscribe")) return null;
+  if (
+    pathname?.startsWith("/unsubscribe") ||
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/signin") ||
+    pathname?.startsWith("/signup") ||
+    pathname?.startsWith("/reset") ||
+    pathname?.startsWith("/account")
+  )
+    return null;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

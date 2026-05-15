@@ -37,6 +37,26 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Phase 2 (profiles & customization) — applied to prod 2026-05-15.
+-- Additive + idempotent so re-running this file converges any
+-- environment (fresh or existing) to the same shape.
+alter table public.profiles
+  add column if not exists avatar_url text,
+  add column if not exists bio text,
+  add column if not exists skills text[] not null default '{}',
+  add column if not exists family_size smallint,
+  add column if not exists location_preference text,
+  add column if not exists updated_at timestamptz not null default now();
+
+drop trigger if exists profiles_updated_at on public.profiles;
+create trigger profiles_updated_at
+  before update on public.profiles
+  for each row execute function public.touch_updated_at();
+
+-- supports the Phase 3 feed "filter by person" lookup
+create index if not exists profiles_display_name_idx
+  on public.profiles (lower(display_name));
+
 -- Create a profile row automatically when a new auth user signs up
 create or replace function public.handle_new_user()
 returns trigger
@@ -45,8 +65,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, email)
-  values (new.id, new.email);
+  insert into public.profiles (id, email, display_name)
+  values (
+    new.id,
+    new.email,
+    nullif(
+      coalesce(
+        new.raw_user_meta_data->>'display_name',
+        new.raw_user_meta_data->>'full_name',
+        new.raw_user_meta_data->>'name'
+      ),
+      ''
+    )
+  );
   return new;
 end;
 $$;
@@ -55,6 +86,38 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Auth method for an email, used by the password-reset flow to send
+-- the right email (reset link vs "you use Google"). Returns:
+--   'none'       — no account
+--   'password'   — has an email/password identity (reset is valid)
+--   'oauth_only' — only third-party identities (e.g. Google)
+-- SECURITY DEFINER to read the auth schema. Execute is REVOKED from
+-- anon/authenticated so this can't become an account-enumeration
+-- oracle — only the service role (server-side) may call it.
+create or replace function public.auth_method_for_email(p_email text)
+returns text
+language sql
+security definer
+stable
+set search_path = ''
+as $$
+  select case
+    when not exists (
+      select 1 from auth.users where email = lower(p_email)
+    ) then 'none'
+    when exists (
+      select 1
+      from auth.identities i
+      join auth.users u on u.id = i.user_id
+      where u.email = lower(p_email) and i.provider = 'email'
+    ) then 'password'
+    else 'oauth_only'
+  end;
+$$;
+
+revoke execute on function public.auth_method_for_email(text)
+  from anon, authenticated, public;
 
 -- Helper: is the current request from an admin?
 -- SECURITY DEFINER so RLS policies can call it without recursing
