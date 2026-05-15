@@ -27,7 +27,8 @@ export default function NewsletterSignup({
     pathname?.startsWith("/account") ||
     pathname?.startsWith("/profile") ||
     pathname?.startsWith("/u/") ||
-    pathname?.startsWith("/feed")
+    pathname?.startsWith("/feed") ||
+    pathname?.startsWith("/people")
   )
     return null;
 

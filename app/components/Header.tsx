@@ -42,6 +42,14 @@ export default async function Header() {
           >
             Community
           </Link>
+          {user && (
+            <Link
+              href="/people"
+              className="hidden text-sm text-bark/70 transition-colors hover:text-bark sm:block"
+            >
+              People
+            </Link>
+          )}
         </div>
 
         {user ? (
