@@ -2,8 +2,14 @@ import "server-only";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-const url = process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+// Vercel's Upstash integration injects KV_REST_API_* names; the classic
+// UPSTASH_REDIS_REST_* names are the fallback (e.g. if set manually for
+// local dev). Use the read-WRITE token — rate limiting increments
+// counters, so the read-only token would fail.
+const url =
+  process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+const token =
+  process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
 
 /**
  * Sliding-window limiter for the public newsletter signup.

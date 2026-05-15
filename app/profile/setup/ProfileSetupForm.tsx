@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Loader2, AlertCircle, Camera } from "lucide-react";
 import { motion } from "motion/react";
@@ -17,7 +16,6 @@ export default function ProfileSetupForm({
   defaultName: string;
   defaultAvatarUrl: string | null;
 }) {
-  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   // avatarUrl is the clean URL persisted to the DB; previewUrl carries
   // a cache-bust only for immediate in-session display.
@@ -30,8 +28,10 @@ export default function ProfileSetupForm({
   const [error, setError] = useState<string | null>(null);
 
   function done() {
-    router.push("/");
-    router.refresh();
+    // Hard navigation: guarantees the server-rendered header re-renders
+    // with the new profile, and avoids the router.push/refresh race
+    // that left this spinning after a successful save.
+    window.location.assign("/");
   }
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -85,23 +85,35 @@ export default function ProfileSetupForm({
     e.preventDefault();
     setBusy("save");
     setError(null);
-    const result = await saveProfileSetup(new FormData(e.currentTarget));
-    if (result.ok) done();
-    else {
+    try {
+      const result = await saveProfileSetup(new FormData(e.currentTarget));
+      if (result.ok) {
+        done();
+        return;
+      }
       setError(result.error);
-      setBusy(null);
+    } catch (err) {
+      console.error("profile setup save threw", err);
+      setError("Something went wrong saving your profile. Please try again.");
     }
+    setBusy(null);
   }
 
   async function onSkip() {
     setBusy("skip");
     setError(null);
-    const result = await skipProfileSetup();
-    if (result.ok) done();
-    else {
+    try {
+      const result = await skipProfileSetup();
+      if (result.ok) {
+        done();
+        return;
+      }
       setError(result.error);
-      setBusy(null);
+    } catch (err) {
+      console.error("profile setup skip threw", err);
+      setError("Something went wrong. Please try again.");
     }
+    setBusy(null);
   }
 
   const field =

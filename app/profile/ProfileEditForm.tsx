@@ -78,9 +78,14 @@ export default function ProfileEditForm({
     setBusy(true);
     setError(null);
     setSaved(false);
-    const result = await updateProfile(new FormData(e.currentTarget));
-    if (result.ok) setSaved(true);
-    else setError(result.error);
+    try {
+      const result = await updateProfile(new FormData(e.currentTarget));
+      if (result.ok) setSaved(true);
+      else setError(result.error);
+    } catch (err) {
+      console.error("profile update threw", err);
+      setError("Something went wrong saving your profile. Please try again.");
+    }
     setBusy(false);
   }
 

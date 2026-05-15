@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle } from "lucide-react";
 import { updatePassword } from "@/app/actions/auth";
 
 export default function ResetUpdateForm() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,14 +17,19 @@ export default function ResetUpdateForm() {
     }
     setBusy(true);
     setError(null);
-    const result = await updatePassword(fd);
-    if (result.ok) {
-      router.push("/");
-      router.refresh();
-    } else {
+    try {
+      const result = await updatePassword(fd);
+      if (result.ok) {
+        // Hard navigation so the header reflects the session.
+        window.location.assign("/");
+        return;
+      }
       setError(result.error);
-      setBusy(false);
+    } catch (err) {
+      console.error("password update threw", err);
+      setError("Something went wrong. Please try again.");
     }
+    setBusy(false);
   }
 
   return (

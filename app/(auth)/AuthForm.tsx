@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, AlertCircle, Mail } from "lucide-react";
 import { motion } from "motion/react";
@@ -14,7 +13,6 @@ import {
 type Mode = "signin" | "signup";
 
 export default function AuthForm({ mode }: { mode: Mode }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentConfirm, setSentConfirm] = useState(false);
@@ -24,23 +22,29 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     setBusy(true);
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const result =
-      mode === "signin"
-        ? await signInWithPassword(fd)
-        : await signUpWithPassword(fd);
+    try {
+      const result =
+        mode === "signin"
+          ? await signInWithPassword(fd)
+          : await signUpWithPassword(fd);
 
-    if (result.ok) {
-      if (mode === "signup") {
-        setSentConfirm(true);
-        setBusy(false);
-      } else {
-        router.push("/");
-        router.refresh();
+      if (result.ok) {
+        if (mode === "signup") {
+          setSentConfirm(true);
+          setBusy(false);
+        } else {
+          // Hard navigation so the server-rendered header reflects the
+          // new session; avoids the router.push/refresh race.
+          window.location.assign("/");
+        }
+        return;
       }
-    } else {
       setError(result.error);
-      setBusy(false);
+    } catch (err) {
+      console.error("auth submit threw", err);
+      setError("Something went wrong. Please try again.");
     }
+    setBusy(false);
   }
 
   if (sentConfirm) {
