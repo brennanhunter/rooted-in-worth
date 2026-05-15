@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Sprout } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AccountMenu from "./AccountMenu";
 
@@ -38,9 +39,10 @@ export default async function Header() {
           </Link>
           <Link
             href="/feed"
-            className="hidden text-sm text-bark/70 transition-colors hover:text-bark sm:block"
+            className="inline-flex items-center gap-2 rounded-full border border-moss/40 bg-sage/15 px-4 py-1.5 text-sm text-bark transition-colors hover:bg-sage/30"
           >
-            Community
+            <Sprout className="h-4 w-4 text-moss" aria-hidden="true" />
+            Community Feed
           </Link>
           {user && (
             <Link

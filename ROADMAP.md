@@ -365,9 +365,9 @@ you point real, vulnerable users at. Grouped by area.
   - [ ] Lawyer review before launch (children/COPPA, liability, content
         license especially — drafted by a non-lawyer for a platform
         serving minors).
-  - [ ] Fill placeholders: `[governing-law state]` in Terms, and the
-        legal entity name (currently just "Rooted in Worth"; update if
-        incorporated as nonprofit/LLC). In-file code comments mark both.
+  - [x] Placeholders filled: legal entity = **Xtremery LLC**, governing
+        law = **Florida** (2026-05-15). Lawyer review of the final text
+        is still the open sub-item above.
   - [ ] Add the two URLs to Google OAuth branding
         (`/privacy`, `/terms`) — unblocks publishing/verification.
 - [x] **Age / COPPA stance decided: 13+** (COPPA threshold, no

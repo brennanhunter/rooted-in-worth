@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { LegalShell, LegalSection } from "../LegalPage";
 
-// NOTE (not rendered): [governing-law state] and the legal entity name
-// are placeholders that MUST be set before launch. Have a lawyer review
+// NOTE (not rendered): legal entity = Xtremery LLC, governing law =
+// Florida (both set 2026-05-15). Still outstanding: a lawyer review
 // before relying on this, especially eligibility (minors) and the
 // liability/disclaimer sections.
 export const metadata = {
@@ -14,9 +14,10 @@ export default function TermsPage() {
   return (
     <LegalShell title="Terms of Service" updated="May 15, 2026">
       <p>
-        These terms govern your use of Rooted in Worth. By using the site or
-        creating an account, you agree to them. If you don&rsquo;t agree,
-        please don&rsquo;t use the service.
+        These terms govern your use of Rooted in Worth, operated by
+        Xtremery LLC (&ldquo;we,&rdquo; &ldquo;us&rdquo;). By using the
+        site or creating an account, you agree to them. If you
+        don&rsquo;t agree, please don&rsquo;t use the service.
       </p>
 
       <LegalSection heading="Who can use it">
@@ -70,9 +71,10 @@ export default function TermsPage() {
 
       <LegalSection heading="Limitation of liability">
         <p>
-          To the fullest extent permitted by law, Rooted in Worth and the
-          people who run it are not liable for indirect, incidental, or
-          consequential damages arising from your use of the service.
+          To the fullest extent permitted by law, Xtremery LLC and the
+          people who run Rooted in Worth are not liable for indirect,
+          incidental, or consequential damages arising from your use of
+          the service.
         </p>
       </LegalSection>
 
@@ -80,9 +82,8 @@ export default function TermsPage() {
         <p>
           We may update these terms; we&rsquo;ll change the date above and
           give notice of significant changes. These terms are governed by
-          the laws of the State of{" "}
-          <span className="text-bark">[governing-law state]</span>, without
-          regard to conflict-of-law rules.
+          the laws of the State of Florida, without regard to
+          conflict-of-law rules.
         </p>
       </LegalSection>
 

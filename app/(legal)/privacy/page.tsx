@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { LegalShell, LegalSection } from "../LegalPage";
 
-// NOTE (not rendered): contains placeholders that MUST be set before
-// launch — legal entity, governing-law state, a working privacy contact
-// inbox. Have a lawyer review before relying on this, especially the
-// children/COPPA section, since the audience includes minors.
+// NOTE (not rendered): legal entity = Xtremery LLC, governing law =
+// Florida (both set 2026-05-15). Still outstanding: a working privacy
+// contact inbox, and a lawyer review before relying on this —
+// especially the children/COPPA section, since the audience includes
+// minors.
 export const metadata = {
   title: "Privacy Policy · Rooted in Worth",
   description: "How Rooted in Worth collects, uses, and protects your data.",
@@ -14,10 +15,10 @@ export default function PrivacyPage() {
   return (
     <LegalShell title="Privacy Policy" updated="May 15, 2026">
       <p>
-        Rooted in Worth (&ldquo;we,&rdquo; &ldquo;us&rdquo;) is a
-        healing-centered community project. This policy explains what we
-        collect, why, and the choices you have. We collect as little as we
-        can and never sell your data.
+        Rooted in Worth is a healing-centered community project operated
+        by Xtremery LLC (&ldquo;we,&rdquo; &ldquo;us&rdquo;). This policy
+        explains what we collect, why, and the choices you have. We
+        collect as little as we can and never sell your data.
       </p>
 
       <LegalSection heading="What we collect">
