@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { reportRatelimit } from "@/lib/ratelimit";
 
 export type ProfileResult = { ok: true } | { ok: false; error: string };
 
@@ -179,6 +180,46 @@ export async function skipProfileSetup(
   if (error) {
     console.error("skipProfileSetup(): update failed", error.message);
     return { ok: false, error: "Something went wrong. Try again." };
+  }
+  return { ok: true };
+}
+
+export async function reportProfile(
+  profileId: string,
+  reason: string,
+): Promise<ProfileResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to report." };
+  if (user.id === profileId) {
+    return { ok: false, error: "You can't report your own profile." };
+  }
+
+  if (reportRatelimit) {
+    const { success } = await reportRatelimit.limit(user.id);
+    if (!success) {
+      return { ok: false, error: "Too many reports. Try again later." };
+    }
+  } else {
+    console.warn(
+      "reportProfile(): rate limiting INACTIVE — Upstash env not set.",
+    );
+  }
+
+  const trimmed = reason.trim().slice(0, 500);
+  const { error } = await supabase.from("profile_reports").insert({
+    profile_id: profileId,
+    reporter_id: user.id,
+    reason: trimmed || null,
+  });
+
+  // 23505 = unique_violation: already reported by this user. Treat as
+  // success so report state isn't revealed and retry-spam is blocked.
+  if (error && error.code !== "23505") {
+    console.error("reportProfile(): insert failed", error.message);
+    return { ok: false, error: "Couldn't submit that report. Try again." };
   }
   return { ok: true };
 }

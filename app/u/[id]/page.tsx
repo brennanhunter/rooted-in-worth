@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import ProfileReportButton from "./ProfileReportButton";
 
 // Public, but intentionally not search-indexed: profiles of a
 // vulnerable community shouldn't be crawlable/scrapable even though
@@ -43,11 +44,21 @@ export default async function PublicProfilePage({
 
   if (!data) notFound();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const canReport = Boolean(user) && user!.id !== id;
+
   const name = data.display_name?.trim() || "A community member";
   const skills = (data.skills ?? []).filter(Boolean);
 
   return (
     <section className="mx-auto w-full max-w-2xl px-6 py-16">
+      {canReport && (
+        <div className="mb-2 flex justify-end">
+          <ProfileReportButton profileId={id} />
+        </div>
+      )}
       <div className="flex flex-col items-center text-center">
         <div className="relative h-28 w-28 overflow-hidden rounded-full bg-sage/25">
           {data.avatar_url ? (
