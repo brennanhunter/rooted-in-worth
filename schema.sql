@@ -303,6 +303,129 @@ create policy "campaign_sends: admins full access"
   with check (public.is_admin());
 
 -- =====================================================
+-- 5. posts (Phase 3 — community feed) — applied to prod 2026-05-15.
+-- Public read (feed open to non-members), members write their own,
+-- authors/admins modify. Moderation slice (2026-05-15) adds soft-delete
+-- via `deleted_at`: the public read policy now hides removed posts;
+-- the admin moderation queue reads them back via the service role.
+-- =====================================================
+
+create table if not exists public.posts (
+  id uuid primary key default gen_random_uuid(),
+  author_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 5000),
+  tags text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Soft delete: removed/moderated posts keep the row (reviewable) but
+-- disappear from every public read via the policy below.
+alter table public.posts
+  add column if not exists deleted_at timestamptz;
+
+create index if not exists posts_created_at_idx
+  on public.posts (created_at desc);
+create index if not exists posts_tags_gin_idx
+  on public.posts using gin (tags);
+
+drop trigger if exists posts_updated_at on public.posts;
+create trigger posts_updated_at
+  before update on public.posts
+  for each row execute function public.touch_updated_at();
+
+alter table public.posts enable row level security;
+
+-- Public read EXCLUDES soft-deleted posts. The admin moderation queue
+-- uses the service role (bypasses RLS) to see removed/reported ones.
+drop policy if exists "posts: anyone can read" on public.posts;
+create policy "posts: anyone can read"
+  on public.posts for select
+  using (deleted_at is null);
+
+drop policy if exists "posts: members can create own" on public.posts;
+create policy "posts: members can create own"
+  on public.posts for insert
+  with check (auth.uid() = author_id);
+
+drop policy if exists "posts: author or admin can modify" on public.posts;
+create policy "posts: author or admin can modify"
+  on public.posts for update
+  using (auth.uid() = author_id or public.is_admin())
+  with check (auth.uid() = author_id or public.is_admin());
+
+drop policy if exists "posts: author or admin can delete" on public.posts;
+create policy "posts: author or admin can delete"
+  on public.posts for delete
+  using (auth.uid() = author_id or public.is_admin());
+
+-- =====================================================
+-- 6. post_reports (Phase 3 moderation) — applied 2026-05-15.
+-- Any signed-in user can report a post once. No public/self read —
+-- the queue is reviewed by the admin (service role, bypasses RLS).
+-- =====================================================
+
+do $$ begin
+  create type public.report_status as enum ('open', 'actioned', 'dismissed');
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.post_reports (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  reporter_id uuid references public.profiles(id) on delete set null,
+  reason text check (reason is null or char_length(reason) <= 500),
+  status public.report_status not null default 'open',
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  unique (post_id, reporter_id)
+);
+
+create index if not exists post_reports_status_idx
+  on public.post_reports (status, created_at desc);
+create index if not exists post_reports_post_idx
+  on public.post_reports (post_id);
+
+alter table public.post_reports enable row level security;
+
+-- Signed-in users may file a report as themselves. No select policy:
+-- reports are not readable via the anon/auth API at all; only the
+-- service-role admin queue sees them.
+drop policy if exists "post_reports: members can report" on public.post_reports;
+create policy "post_reports: members can report"
+  on public.post_reports for insert
+  with check (auth.uid() = reporter_id);
+
+-- =====================================================
+-- 7. profile_reports (Phase 3 moderation) — applied 2026-05-15.
+-- Same shape/policy as post_reports, but for reporting a published
+-- avatar/profile. Closes the gap where avatars were only pre-publish
+-- moderated with no user report path. Reuses report_status.
+-- =====================================================
+
+create table if not exists public.profile_reports (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  reporter_id uuid references public.profiles(id) on delete set null,
+  reason text check (reason is null or char_length(reason) <= 500),
+  status public.report_status not null default 'open',
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  unique (profile_id, reporter_id)
+);
+
+create index if not exists profile_reports_status_idx
+  on public.profile_reports (status, created_at desc);
+create index if not exists profile_reports_profile_idx
+  on public.profile_reports (profile_id);
+
+alter table public.profile_reports enable row level security;
+
+drop policy if exists "profile_reports: members can report" on public.profile_reports;
+create policy "profile_reports: members can report"
+  on public.profile_reports for insert
+  with check (auth.uid() = reporter_id);
+
+-- =====================================================
 -- Storage: avatars bucket
 -- Public-read so <Image> can render avatars without auth. Writes are
 -- restricted by RLS to a folder named after the user's own uid, and

@@ -45,6 +45,34 @@ export const authRatelimit =
       })
     : null;
 
+/**
+ * Limiter for creating posts. Keyed by user id (authed action), not
+ * IP. Stops one account flooding the shared feed: 5 posts per 5 min.
+ */
+export const postRatelimit =
+  url && token
+    ? new Ratelimit({
+        redis: new Redis({ url, token }),
+        limiter: Ratelimit.slidingWindow(5, "5 m"),
+        prefix: "ratelimit:post",
+        analytics: false,
+      })
+    : null;
+
+/**
+ * Limiter for filing reports. Keyed by user id. Stops report-spam /
+ * harassment-by-mass-reporting: 15 reports per 10 min.
+ */
+export const reportRatelimit =
+  url && token
+    ? new Ratelimit({
+        redis: new Redis({ url, token }),
+        limiter: Ratelimit.slidingWindow(15, "10 m"),
+        prefix: "ratelimit:report",
+        analytics: false,
+      })
+    : null;
+
 /** Best-effort client IP from Vercel's forwarding headers. */
 export function clientIp(headers: Headers): string {
   const fwd = headers.get("x-forwarded-for");

@@ -80,13 +80,45 @@ function parseProfileFields(formData: FormData) {
   };
 }
 
+const AGE_ERROR =
+  "You must confirm you are at least 13 to continue.";
+
+/**
+ * Universal age gate. Every new user (email or Google, via any path)
+ * passes through profile setup, so enforcing here closes the signup-page
+ * gap. No-ops for users who already affirmed at signup (email) — they
+ * never see the checkbox and aren't re-prompted. Records the affirmation
+ * in user metadata so it's auditable and one-time.
+ */
+async function enforceAgeGate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  alreadyConfirmed: boolean,
+  confirmedNow: boolean,
+): Promise<string | null> {
+  if (alreadyConfirmed) return null;
+  if (!confirmedNow) return AGE_ERROR;
+  await supabase.auth.updateUser({
+    data: { age_confirmed_at: new Date().toISOString() },
+  });
+  return null;
+}
+
 export async function saveProfileSetup(
   formData: FormData,
 ): Promise<ProfileResult> {
-  const user = await currentUserId();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You're not signed in." };
 
-  const supabase = await createClient();
+  const ageErr = await enforceAgeGate(
+    supabase,
+    Boolean(user.user_metadata?.age_confirmed_at),
+    formData.get("age_confirm") != null,
+  );
+  if (ageErr) return { ok: false, error: ageErr };
+
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -123,11 +155,22 @@ export async function updateProfile(
   return { ok: true };
 }
 
-export async function skipProfileSetup(): Promise<ProfileResult> {
-  const user = await currentUserId();
+export async function skipProfileSetup(
+  ageConfirm: boolean,
+): Promise<ProfileResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You're not signed in." };
 
-  const supabase = await createClient();
+  const ageErr = await enforceAgeGate(
+    supabase,
+    Boolean(user.user_metadata?.age_confirmed_at),
+    ageConfirm,
+  );
+  if (ageErr) return { ok: false, error: ageErr };
+
   const { error } = await supabase
     .from("profiles")
     .update({ onboarded_at: new Date().toISOString() })

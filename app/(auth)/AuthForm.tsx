@@ -16,6 +16,10 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentConfirm, setSentConfirm] = useState(false);
+  // Age affirmation gates both signup paths (email + Google) on the
+  // signup screen. Server also enforces it — don't trust the client.
+  const [ageOk, setAgeOk] = useState(false);
+  const ageBlocked = mode === "signup" && !ageOk;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -111,9 +115,26 @@ export default function AuthForm({ mode }: { mode: Mode }) {
           </Link>
         )}
 
+        {mode === "signup" && (
+          <label className="mt-1 flex items-start gap-2 text-sm text-bark/75">
+            <input
+              type="checkbox"
+              name="age_confirm"
+              checked={ageOk}
+              onChange={(e) => setAgeOk(e.target.checked)}
+              disabled={busy}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-moss"
+            />
+            <span>
+              I confirm I am at least 13 years old. If I&rsquo;m under 18,
+              I have a parent or guardian&rsquo;s permission.
+            </span>
+          </label>
+        )}
+
         <motion.button
           type="submit"
-          disabled={busy}
+          disabled={busy || ageBlocked}
           whileTap={{ scale: 0.97 }}
           className="mt-1 inline-flex items-center justify-center gap-2 rounded-full bg-bark px-6 py-3 text-cream transition-colors hover:bg-bark/90 disabled:opacity-60"
         >
@@ -143,12 +164,18 @@ export default function AuthForm({ mode }: { mode: Mode }) {
       <form action={signInWithGoogle}>
         <button
           type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-full border border-bark/20 bg-cream px-6 py-3 text-bark transition-colors hover:bg-bark/5"
+          disabled={ageBlocked}
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-bark/20 bg-cream px-6 py-3 text-bark transition-colors hover:bg-bark/5 disabled:opacity-50"
         >
           <GoogleMark />
           Continue with Google
         </button>
       </form>
+      {ageBlocked && (
+        <p className="-mt-2 text-center text-xs text-bark/50">
+          Confirm your age above to continue.
+        </p>
+      )}
 
       <p className="text-center text-sm text-bark/65">
         {mode === "signin" ? (

@@ -1,4 +1,5 @@
-import { Users, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Users, LogOut, ShieldAlert } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { adminLogout } from "@/app/actions/admin";
 import NewsletterComposer from "./NewsletterComposer";
@@ -20,15 +21,24 @@ export default async function AdminDashboardPage() {
     <section className="mx-auto w-full max-w-2xl px-6 py-16">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl text-bark md:text-4xl">Newsletter</h1>
-        <form action={adminLogout}>
-          <button
-            type="submit"
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/moderation"
             className="inline-flex items-center gap-2 rounded-full border border-bark/20 px-4 py-2 text-sm text-bark transition-colors hover:bg-bark/5"
           >
-            <LogOut className="h-4 w-4" aria-hidden="true" />
-            Sign out
-          </button>
-        </form>
+            <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+            Moderation
+          </Link>
+          <form action={adminLogout}>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-full border border-bark/20 px-4 py-2 text-sm text-bark transition-colors hover:bg-bark/5"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-sage/20 px-4 py-2 text-sm text-bark">

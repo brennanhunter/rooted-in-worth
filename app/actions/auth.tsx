@@ -65,7 +65,14 @@ export async function signUpWithPassword(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const displayName = String(formData.get("display_name") ?? "").trim();
+  const ageConfirmed = formData.get("age_confirm") != null;
 
+  if (!ageConfirmed) {
+    return {
+      ok: false,
+      error: "You must confirm you are at least 13 to create an account.",
+    };
+  }
   if (!EMAIL_RE.test(email)) {
     return { ok: false, error: "That email doesn't look right." };
   }
@@ -82,7 +89,10 @@ export async function signUpWithPassword(
     password,
     options: {
       emailRedirectTo: `${await siteOrigin()}/auth/callback`,
-      data: displayName ? { display_name: displayName } : undefined,
+      data: {
+        age_confirmed_at: new Date().toISOString(),
+        ...(displayName ? { display_name: displayName } : {}),
+      },
     },
   });
 

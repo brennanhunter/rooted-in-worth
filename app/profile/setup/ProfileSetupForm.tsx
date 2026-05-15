@@ -12,11 +12,15 @@ const MAX_BYTES = 2 * 1024 * 1024; // 2MB — matches the bucket limit
 export default function ProfileSetupForm({
   defaultName,
   defaultAvatarUrl,
+  needsAgeConfirm,
 }: {
   defaultName: string;
   defaultAvatarUrl: string | null;
+  needsAgeConfirm: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [ageOk, setAgeOk] = useState(false);
+  const ageBlocked = needsAgeConfirm && !ageOk;
   // avatarUrl is the clean URL persisted to the DB; previewUrl carries
   // a cache-bust only for immediate in-session display.
   const [avatarUrl, setAvatarUrl] = useState<string | null>(defaultAvatarUrl);
@@ -103,7 +107,7 @@ export default function ProfileSetupForm({
     setBusy("skip");
     setError(null);
     try {
-      const result = await skipProfileSetup();
+      const result = await skipProfileSetup(ageOk);
       if (result.ok) {
         done();
         return;
@@ -244,6 +248,23 @@ export default function ProfileSetupForm({
         </div>
       </div>
 
+      {needsAgeConfirm && (
+        <label className="flex items-start gap-2 text-sm text-bark/75">
+          <input
+            type="checkbox"
+            name="age_confirm"
+            checked={ageOk}
+            onChange={(e) => setAgeOk(e.target.checked)}
+            disabled={disabled}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-moss"
+          />
+          <span>
+            I confirm I am at least 13 years old. If I&rsquo;m under 18, I
+            have a parent or guardian&rsquo;s permission.
+          </span>
+        </label>
+      )}
+
       {error && (
         <p
           role="alert"
@@ -257,7 +278,7 @@ export default function ProfileSetupForm({
       <div className="mt-2 flex items-center gap-3">
         <motion.button
           type="submit"
-          disabled={disabled}
+          disabled={disabled || ageBlocked}
           whileTap={{ scale: 0.97 }}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-bark px-6 py-3 text-cream transition-colors hover:bg-bark/90 disabled:opacity-60"
         >
@@ -269,7 +290,7 @@ export default function ProfileSetupForm({
         <button
           type="button"
           onClick={onSkip}
-          disabled={disabled}
+          disabled={disabled || ageBlocked}
           className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm text-bark/60 transition-colors hover:text-bark disabled:opacity-60"
         >
           {busy === "skip" && (

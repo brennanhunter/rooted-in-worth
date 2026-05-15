@@ -35,6 +35,7 @@ export default async function ProfileSetupPage() {
         <ProfileSetupForm
           defaultName={profile?.display_name ?? ""}
           defaultAvatarUrl={profile?.avatar_url ?? null}
+          needsAgeConfirm={!user.user_metadata?.age_confirmed_at}
         />
       </div>
     </section>
