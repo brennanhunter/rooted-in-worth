@@ -426,6 +426,40 @@ create policy "profile_reports: members can report"
   with check (auth.uid() = reporter_id);
 
 -- =====================================================
+-- 8. post_likes (Phase 3) — applied 2026-05-15.
+-- One like per user per post (PK enforces it). Counts are public so
+-- the feed can show them to everyone; members like/unlike only their
+-- own row.
+-- =====================================================
+
+create table if not exists public.post_likes (
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create index if not exists post_likes_post_idx
+  on public.post_likes (post_id);
+
+alter table public.post_likes enable row level security;
+
+drop policy if exists "post_likes: anyone can read" on public.post_likes;
+create policy "post_likes: anyone can read"
+  on public.post_likes for select
+  using (true);
+
+drop policy if exists "post_likes: members like own" on public.post_likes;
+create policy "post_likes: members like own"
+  on public.post_likes for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "post_likes: members unlike own" on public.post_likes;
+create policy "post_likes: members unlike own"
+  on public.post_likes for delete
+  using (auth.uid() = user_id);
+
+-- =====================================================
 -- Storage: avatars bucket
 -- Public-read so <Image> can render avatars without auth. Writes are
 -- restricted by RLS to a folder named after the user's own uid, and

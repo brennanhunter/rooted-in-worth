@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import Composer from "./Composer";
 import PostMenu from "./PostMenu";
 import FeedFilters from "./FeedFilters";
+import LikeButton from "./LikeButton";
 
 export const metadata = {
   title: "Community · Rooted in Worth",
@@ -134,6 +135,23 @@ export default async function FeedPage({
     for (const a of authors ?? []) authorMap.set(a.id, a);
   }
 
+  // Like counts + which posts the viewer has liked. One query over the
+  // visible page's post ids; tallied in JS (small page).
+  const postIds = (posts ?? []).map((p) => p.id);
+  const likeCount = new Map<string, number>();
+  const likedByViewer = new Set<string>();
+  if (postIds.length > 0) {
+    const { data: likes } = await supabase
+      .from("post_likes")
+      .select("post_id, user_id")
+      .in("post_id", postIds)
+      .returns<{ post_id: string; user_id: string }[]>();
+    for (const l of likes ?? []) {
+      likeCount.set(l.post_id, (likeCount.get(l.post_id) ?? 0) + 1);
+      if (viewerId && l.user_id === viewerId) likedByViewer.add(l.post_id);
+    }
+  }
+
   return (
     <section className="mx-auto w-full max-w-2xl px-6 py-12">
       <h1 className="text-4xl text-bark md:text-5xl">The grove</h1>
@@ -241,6 +259,15 @@ export default async function FeedPage({
                   ))}
                 </div>
               )}
+
+              <div className="mt-4 border-t border-bark/5 pt-3">
+                <LikeButton
+                  postId={post.id}
+                  initialCount={likeCount.get(post.id) ?? 0}
+                  initialLiked={likedByViewer.has(post.id)}
+                  canInteract={canPost}
+                />
+              </div>
             </article>
           );
         })}

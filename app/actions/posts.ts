@@ -1,9 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { postRatelimit, reportRatelimit } from "@/lib/ratelimit";
+import {
+  postRatelimit,
+  reportRatelimit,
+  likeRatelimit,
+} from "@/lib/ratelimit";
 
 export type PostResult = { ok: true } | { ok: false; error: string };
+export type LikeResult =
+  | { ok: true; liked: boolean }
+  | { ok: false; error: string };
 
 const MAX_BODY = 5000;
 const MAX_TAGS = 8;
@@ -129,4 +136,62 @@ export async function deleteOwnPost(postId: string): Promise<PostResult> {
     return { ok: false, error: "Couldn't delete that. Try again." };
   }
   return { ok: true };
+}
+
+export async function toggleLike(postId: string): Promise<LikeResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to like posts." };
+
+  // Same participation gate as posting: only onboarded (age-affirmed)
+  // accounts can interact.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("onboarded_at")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!profile?.onboarded_at) {
+    return { ok: false, error: "Finish setting up your profile first." };
+  }
+
+  if (likeRatelimit) {
+    const { success } = await likeRatelimit.limit(user.id);
+    if (!success) {
+      return { ok: false, error: "Slow down a moment." };
+    }
+  } else {
+    console.warn("toggleLike(): rate limiting INACTIVE — Upstash env not set.");
+  }
+
+  const { data: existing } = await supabase
+    .from("post_likes")
+    .select("post_id")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("post_likes")
+      .delete()
+      .eq("post_id", postId)
+      .eq("user_id", user.id);
+    if (error) {
+      console.error("toggleLike(): unlike failed", error.message);
+      return { ok: false, error: "Couldn't update that. Try again." };
+    }
+    return { ok: true, liked: false };
+  }
+
+  const { error } = await supabase
+    .from("post_likes")
+    .insert({ post_id: postId, user_id: user.id });
+  // 23505 = already liked (race) — treat as liked, not an error.
+  if (error && error.code !== "23505") {
+    console.error("toggleLike(): like failed", error.message);
+    return { ok: false, error: "Couldn't update that. Try again." };
+  }
+  return { ok: true, liked: true };
 }

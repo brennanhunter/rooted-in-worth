@@ -73,6 +73,20 @@ export const reportRatelimit =
       })
     : null;
 
+/**
+ * Limiter for like/unlike toggles. Keyed by user id. Generous (normal
+ * browsing likes a lot) but caps scripted toggle-spam: 60 per minute.
+ */
+export const likeRatelimit =
+  url && token
+    ? new Ratelimit({
+        redis: new Redis({ url, token }),
+        limiter: Ratelimit.slidingWindow(60, "1 m"),
+        prefix: "ratelimit:like",
+        analytics: false,
+      })
+    : null;
+
 /** Best-effort client IP from Vercel's forwarding headers. */
 export function clientIp(headers: Headers): string {
   const fwd = headers.get("x-forwarded-for");
