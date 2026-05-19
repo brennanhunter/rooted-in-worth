@@ -460,6 +460,82 @@ create policy "post_likes: members unlike own"
   using (auth.uid() = user_id);
 
 -- =====================================================
+-- 9. post_replies (Phase 3) — applied 2026-05-15.
+-- Flat replies (no reply-to-reply). Public read excludes soft-deleted;
+-- members write/edit/delete their own; authors/admins moderate. Same
+-- soft-delete model as posts so removed replies are reviewable.
+-- =====================================================
+
+create table if not exists public.post_replies (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  author_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 2000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create index if not exists post_replies_post_idx
+  on public.post_replies (post_id, created_at);
+
+drop trigger if exists post_replies_updated_at on public.post_replies;
+create trigger post_replies_updated_at
+  before update on public.post_replies
+  for each row execute function public.touch_updated_at();
+
+alter table public.post_replies enable row level security;
+
+drop policy if exists "post_replies: anyone can read" on public.post_replies;
+create policy "post_replies: anyone can read"
+  on public.post_replies for select
+  using (deleted_at is null);
+
+drop policy if exists "post_replies: members create own" on public.post_replies;
+create policy "post_replies: members create own"
+  on public.post_replies for insert
+  with check (auth.uid() = author_id);
+
+drop policy if exists "post_replies: author or admin modify" on public.post_replies;
+create policy "post_replies: author or admin modify"
+  on public.post_replies for update
+  using (auth.uid() = author_id or public.is_admin())
+  with check (auth.uid() = author_id or public.is_admin());
+
+drop policy if exists "post_replies: author or admin delete" on public.post_replies;
+create policy "post_replies: author or admin delete"
+  on public.post_replies for delete
+  using (auth.uid() = author_id or public.is_admin());
+
+-- =====================================================
+-- 10. reply_reports (Phase 3 moderation) — applied 2026-05-15.
+-- Same hardened pattern as post_reports/profile_reports.
+-- =====================================================
+
+create table if not exists public.reply_reports (
+  id uuid primary key default gen_random_uuid(),
+  reply_id uuid not null references public.post_replies(id) on delete cascade,
+  reporter_id uuid references public.profiles(id) on delete set null,
+  reason text check (reason is null or char_length(reason) <= 500),
+  status public.report_status not null default 'open',
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  unique (reply_id, reporter_id)
+);
+
+create index if not exists reply_reports_status_idx
+  on public.reply_reports (status, created_at desc);
+create index if not exists reply_reports_reply_idx
+  on public.reply_reports (reply_id);
+
+alter table public.reply_reports enable row level security;
+
+drop policy if exists "reply_reports: members can report" on public.reply_reports;
+create policy "reply_reports: members can report"
+  on public.reply_reports for insert
+  with check (auth.uid() = reporter_id);
+
+-- =====================================================
 -- Storage: avatars bucket
 -- Public-read so <Image> can render avatars without auth. Writes are
 -- restricted by RLS to a folder named after the user's own uid, and

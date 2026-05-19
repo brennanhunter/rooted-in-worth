@@ -5,6 +5,7 @@ import Composer from "./Composer";
 import PostMenu from "./PostMenu";
 import FeedFilters from "./FeedFilters";
 import LikeButton from "./LikeButton";
+import Replies, { type ReplyView } from "./Replies";
 
 export const metadata = {
   title: "Community · Rooted in Worth",
@@ -124,7 +125,35 @@ export default async function FeedPage({
   if (person) filterQs.set("person", person);
   const baseQs = filterQs.toString();
 
-  const authorIds = [...new Set((posts ?? []).map((p) => p.author_id))];
+  const postIds = (posts ?? []).map((p) => p.id);
+
+  // Replies for the visible posts (RLS already excludes soft-deleted),
+  // oldest-first within each post.
+  type ReplyRow = {
+    id: string;
+    post_id: string;
+    author_id: string;
+    body: string;
+    created_at: string;
+  };
+  const replyRows: ReplyRow[] = [];
+  if (postIds.length > 0) {
+    const { data } = await supabase
+      .from("post_replies")
+      .select("id, post_id, author_id, body, created_at")
+      .in("post_id", postIds)
+      .order("created_at", { ascending: true })
+      .returns<ReplyRow[]>();
+    replyRows.push(...(data ?? []));
+  }
+
+  // One profile lookup covering BOTH post authors and reply authors.
+  const authorIds = [
+    ...new Set([
+      ...(posts ?? []).map((p) => p.author_id),
+      ...replyRows.map((r) => r.author_id),
+    ]),
+  ];
   const authorMap = new Map<string, AuthorBits>();
   if (authorIds.length > 0) {
     const { data: authors } = await supabase
@@ -135,9 +164,24 @@ export default async function FeedPage({
     for (const a of authors ?? []) authorMap.set(a.id, a);
   }
 
+  const repliesByPost = new Map<string, ReplyView[]>();
+  for (const r of replyRows) {
+    const a = authorMap.get(r.author_id);
+    const list = repliesByPost.get(r.post_id) ?? [];
+    list.push({
+      id: r.id,
+      body: r.body,
+      time: relativeTime(r.created_at),
+      authorId: r.author_id,
+      authorName: a?.display_name?.trim() || "A community member",
+      authorAvatar: a?.avatar_url ?? null,
+      isOwn: viewerId === r.author_id,
+    });
+    repliesByPost.set(r.post_id, list);
+  }
+
   // Like counts + which posts the viewer has liked. One query over the
   // visible page's post ids; tallied in JS (small page).
-  const postIds = (posts ?? []).map((p) => p.id);
   const likeCount = new Map<string, number>();
   const likedByViewer = new Set<string>();
   if (postIds.length > 0) {
@@ -238,6 +282,8 @@ export default async function FeedPage({
                   <PostMenu
                     postId={post.id}
                     isOwn={post.author_id === viewerId}
+                    initialBody={post.body}
+                    initialTags={post.tags.join(", ")}
                   />
                 )}
               </div>
@@ -261,10 +307,17 @@ export default async function FeedPage({
               )}
 
               <div className="mt-4 border-t border-bark/5 pt-3">
-                <LikeButton
+                <div className="flex items-center gap-5">
+                  <LikeButton
+                    postId={post.id}
+                    initialCount={likeCount.get(post.id) ?? 0}
+                    initialLiked={likedByViewer.has(post.id)}
+                    canInteract={canPost}
+                  />
+                </div>
+                <Replies
                   postId={post.id}
-                  initialCount={likeCount.get(post.id) ?? 0}
-                  initialLiked={likedByViewer.has(post.id)}
+                  replies={repliesByPost.get(post.id) ?? []}
                   canInteract={canPost}
                 />
               </div>

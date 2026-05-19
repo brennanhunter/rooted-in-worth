@@ -3,6 +3,7 @@ import Image from "next/image";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import ModerationActions from "./ModerationActions";
 import ProfileModerationActions from "./ProfileModerationActions";
+import ReplyModerationActions from "./ReplyModerationActions";
 
 export const metadata = {
   title: "Moderation · Rooted in Worth",
@@ -101,6 +102,54 @@ export default async function ModerationPage() {
     }
   }
 
+  // Open reply reports.
+  const { data: replyReports } = await supabaseAdmin
+    .from("reply_reports")
+    .select("id, reply_id, reporter_id, reason, created_at")
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .returns<
+      {
+        id: string;
+        reply_id: string;
+        reporter_id: string | null;
+        reason: string | null;
+        created_at: string;
+      }[]
+    >();
+  const rrList = replyReports ?? [];
+  const reportedReplyIds = [...new Set(rrList.map((r) => r.reply_id))];
+  const replyMap = new Map<
+    string,
+    {
+      id: string;
+      body: string;
+      deleted_at: string | null;
+      author_id: string;
+    }
+  >();
+  if (reportedReplyIds.length) {
+    const { data: reps } = await supabaseAdmin
+      .from("post_replies")
+      .select("id, body, deleted_at, author_id")
+      .in("id", reportedReplyIds);
+    for (const rp of reps ?? []) replyMap.set(rp.id, rp);
+    const need = [
+      ...new Set([
+        ...[...replyMap.values()].map((rp) => rp.author_id),
+        ...rrList.flatMap((r) => (r.reporter_id ? [r.reporter_id] : [])),
+      ]),
+    ].filter((pid) => !nameMap.has(pid));
+    if (need.length) {
+      const { data: people } = await supabaseAdmin
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", need);
+      for (const p of people ?? [])
+        nameMap.set(p.id, p.display_name ?? "Unknown");
+    }
+  }
+
   return (
     <section className="mx-auto w-full max-w-2xl px-6 py-16">
       <div className="mb-8 flex items-center justify-between">
@@ -115,7 +164,8 @@ export default async function ModerationPage() {
 
       <p className="mb-8 text-sm text-bark/60">
         {list.length} post report{list.length === 1 ? "" : "s"} ·{" "}
-        {prList.length} profile report{prList.length === 1 ? "" : "s"}.
+        {prList.length} profile report{prList.length === 1 ? "" : "s"} ·{" "}
+        {rrList.length} reply report{rrList.length === 1 ? "" : "s"}.
       </p>
 
       <h2 className="mb-4 text-lg text-bark">Post reports</h2>
@@ -256,6 +306,70 @@ export default async function ModerationPage() {
                   hasAvatar={hasAvatar}
                 />
               </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <h2 className="mb-4 mt-12 text-lg text-bark">Reply reports</h2>
+      <div className="flex flex-col gap-5">
+        {rrList.length === 0 && (
+          <p className="py-8 text-center text-bark/50">No reply reports.</p>
+        )}
+        {rrList.map((r) => {
+          const reply = replyMap.get(r.reply_id);
+          const removed = Boolean(reply?.deleted_at);
+          return (
+            <article
+              key={r.id}
+              className="rounded-2xl border border-bark/10 bg-cream p-5"
+            >
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-bark/55">
+                <span>
+                  Author:{" "}
+                  <span className="text-bark/80">
+                    {reply
+                      ? nameMap.get(reply.author_id) ?? "Unknown"
+                      : "—"}
+                  </span>
+                </span>
+                <span>·</span>
+                <span>
+                  Reported by:{" "}
+                  <span className="text-bark/80">
+                    {r.reporter_id
+                      ? nameMap.get(r.reporter_id) ?? "Unknown"
+                      : "deleted user"}
+                  </span>
+                </span>
+                <span>·</span>
+                <span>{new Date(r.created_at).toLocaleString()}</span>
+                {removed && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">
+                    removed
+                  </span>
+                )}
+              </div>
+
+              {r.reason && (
+                <p className="mt-3 rounded-lg bg-oak/10 px-3 py-2 text-sm text-bark/80">
+                  &ldquo;{r.reason}&rdquo;
+                </p>
+              )}
+
+              <p className="mt-3 whitespace-pre-line rounded-lg border border-bark/10 bg-sage/5 p-3 text-sm leading-relaxed text-bark/85">
+                {reply ? reply.body : "[reply no longer exists]"}
+              </p>
+
+              {reply && (
+                <div className="mt-4">
+                  <ReplyModerationActions
+                    replyId={reply.id}
+                    reportId={r.id}
+                    isRemoved={removed}
+                  />
+                </div>
+              )}
             </article>
           );
         })}

@@ -87,6 +87,20 @@ export const likeRatelimit =
       })
     : null;
 
+/**
+ * Limiter for creating replies. Keyed by user id. Replies are more
+ * frequent than posts but still capped: 15 per 5 min.
+ */
+export const replyRatelimit =
+  url && token
+    ? new Ratelimit({
+        redis: new Redis({ url, token }),
+        limiter: Ratelimit.slidingWindow(15, "5 m"),
+        prefix: "ratelimit:reply",
+        analytics: false,
+      })
+    : null;
+
 /** Best-effort client IP from Vercel's forwarding headers. */
 export function clientIp(headers: Headers): string {
   const fwd = headers.get("x-forwarded-for");

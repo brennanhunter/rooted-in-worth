@@ -138,6 +138,41 @@ export async function deleteOwnPost(postId: string): Promise<PostResult> {
   return { ok: true };
 }
 
+/** Author edits their own post body + tags. RLS also gates this to
+ *  author-or-admin; we additionally scope by author_id and exclude
+ *  already-deleted rows. */
+export async function editPost(
+  postId: string,
+  rawBody: string,
+  rawTags: string,
+): Promise<PostResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in first." };
+
+  const body = rawBody.trim();
+  if (body.length < 1) return { ok: false, error: "Post can't be empty." };
+  if (body.length > MAX_BODY) {
+    return { ok: false, error: "Keep it under 5000 characters." };
+  }
+  const tags = parseTags(rawTags);
+
+  const { error } = await supabase
+    .from("posts")
+    .update({ body, tags })
+    .eq("id", postId)
+    .eq("author_id", user.id)
+    .is("deleted_at", null);
+
+  if (error) {
+    console.error("editPost(): update failed", error.message);
+    return { ok: false, error: "Couldn't save that edit. Try again." };
+  }
+  return { ok: true };
+}
+
 export async function toggleLike(postId: string): Promise<LikeResult> {
   const supabase = await createClient();
   const {

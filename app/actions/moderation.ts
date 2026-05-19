@@ -105,3 +105,42 @@ export async function adminDismissProfileReport(
   }
   return { ok: true };
 }
+
+/** Soft-delete a reported reply and resolve its open reports. */
+export async function adminRemoveReply(replyId: string): Promise<ModResult> {
+  if (!(await guard())) return { ok: false, error: "Not authorized." };
+
+  const { error } = await supabaseAdmin
+    .from("post_replies")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", replyId);
+  if (error) {
+    console.error("adminRemoveReply(): failed", error.message);
+    return { ok: false, error: "Couldn't remove the reply." };
+  }
+
+  await supabaseAdmin
+    .from("reply_reports")
+    .update({ status: "actioned", resolved_at: new Date().toISOString() })
+    .eq("reply_id", replyId)
+    .eq("status", "open");
+
+  return { ok: true };
+}
+
+/** Dismiss a single reply report (keep the reply). */
+export async function adminDismissReplyReport(
+  reportId: string,
+): Promise<ModResult> {
+  if (!(await guard())) return { ok: false, error: "Not authorized." };
+
+  const { error } = await supabaseAdmin
+    .from("reply_reports")
+    .update({ status: "dismissed", resolved_at: new Date().toISOString() })
+    .eq("id", reportId);
+  if (error) {
+    console.error("adminDismissReplyReport(): failed", error.message);
+    return { ok: false, error: "Couldn't dismiss the report." };
+  }
+  return { ok: true };
+}
