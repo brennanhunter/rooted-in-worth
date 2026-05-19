@@ -6,6 +6,7 @@ import PostMenu from "./PostMenu";
 import FeedFilters from "./FeedFilters";
 import LikeButton from "./LikeButton";
 import Replies, { type ReplyView } from "./Replies";
+import Likers, { type LikerView } from "./Likers";
 
 export const metadata = {
   title: "Community · Rooted in Worth",
@@ -137,21 +138,31 @@ export default async function FeedPage({
     created_at: string;
   };
   const replyRows: ReplyRow[] = [];
+  const likeRows: { post_id: string; user_id: string }[] = [];
   if (postIds.length > 0) {
-    const { data } = await supabase
-      .from("post_replies")
-      .select("id, post_id, author_id, body, created_at")
-      .in("post_id", postIds)
-      .order("created_at", { ascending: true })
-      .returns<ReplyRow[]>();
-    replyRows.push(...(data ?? []));
+    const [rep, lk] = await Promise.all([
+      supabase
+        .from("post_replies")
+        .select("id, post_id, author_id, body, created_at")
+        .in("post_id", postIds)
+        .order("created_at", { ascending: true })
+        .returns<ReplyRow[]>(),
+      supabase
+        .from("post_likes")
+        .select("post_id, user_id")
+        .in("post_id", postIds)
+        .returns<{ post_id: string; user_id: string }[]>(),
+    ]);
+    replyRows.push(...(rep.data ?? []));
+    likeRows.push(...(lk.data ?? []));
   }
 
-  // One profile lookup covering BOTH post authors and reply authors.
+  // One profile lookup covering post authors, reply authors, AND likers.
   const authorIds = [
     ...new Set([
       ...(posts ?? []).map((p) => p.author_id),
       ...replyRows.map((r) => r.author_id),
+      ...likeRows.map((l) => l.user_id),
     ]),
   ];
   const authorMap = new Map<string, AuthorBits>();
@@ -180,20 +191,20 @@ export default async function FeedPage({
     repliesByPost.set(r.post_id, list);
   }
 
-  // Like counts + which posts the viewer has liked. One query over the
-  // visible page's post ids; tallied in JS (small page).
   const likeCount = new Map<string, number>();
   const likedByViewer = new Set<string>();
-  if (postIds.length > 0) {
-    const { data: likes } = await supabase
-      .from("post_likes")
-      .select("post_id, user_id")
-      .in("post_id", postIds)
-      .returns<{ post_id: string; user_id: string }[]>();
-    for (const l of likes ?? []) {
-      likeCount.set(l.post_id, (likeCount.get(l.post_id) ?? 0) + 1);
-      if (viewerId && l.user_id === viewerId) likedByViewer.add(l.post_id);
-    }
+  const likersByPost = new Map<string, LikerView[]>();
+  for (const l of likeRows) {
+    likeCount.set(l.post_id, (likeCount.get(l.post_id) ?? 0) + 1);
+    if (viewerId && l.user_id === viewerId) likedByViewer.add(l.post_id);
+    const a = authorMap.get(l.user_id);
+    const list = likersByPost.get(l.post_id) ?? [];
+    list.push({
+      id: l.user_id,
+      name: a?.display_name?.trim() || "A community member",
+      avatar: a?.avatar_url ?? null,
+    });
+    likersByPost.set(l.post_id, list);
   }
 
   return (
@@ -307,13 +318,14 @@ export default async function FeedPage({
               )}
 
               <div className="mt-4 border-t border-bark/5 pt-3">
-                <div className="flex items-center gap-5">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                   <LikeButton
                     postId={post.id}
                     initialCount={likeCount.get(post.id) ?? 0}
                     initialLiked={likedByViewer.has(post.id)}
                     canInteract={canPost}
                   />
+                  <Likers likers={likersByPost.get(post.id) ?? []} />
                 </div>
                 <Replies
                   postId={post.id}
